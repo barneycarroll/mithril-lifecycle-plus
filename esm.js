@@ -1,4 +1,4 @@
-const draws = new WeakMap()
+const frame = new WeakMap()
 
 const multi = ( ...input ) => {
   fns = input.filter( x => typeof x == 'function' )
@@ -22,28 +22,39 @@ const multi = ( ...input ) => {
     )
 }
 
-export default ( { preview, postview, frames, loop, ...node } ) => {
-  const { oninit, oncreate, beforeupdate, onupdate, view } = node
+export default Object.assign(
+  ( { preview, postview, afterall, previews, postviews, afteralls, views, loops, ...node } ) => {
+    const { oninit, oncreate, beforeupdate, onupdate, view } = node
 
-  return Object.assign( node, {
-    oninit         : multi( oninit,         preview,
-      frames && () => draws.set( this, -1 )
-    ),
-    onbeforeupdate : multi( onbeforeupdate, preview  ),
-    oncreate       : multi( oncreate,       postview ),
-    onupdate       : multi( onupdate,       postview ),
-    view           :
-        frames
-      ? function(){
-        let count = draws.get( this ) + 1
+    return Object.assign( node, {
+      oninit         : multi( oninit,         preview,
+        views && () => frame.set( this, -1 )
+      ),
+      onbeforeupdate : multi( onbeforeupdate, preview  ),
+      oncreate       : multi( oncreate,       postview ),
+      onupdate       : multi( onupdate,       postview ),
+      view           : multi(
+          views || typeof loops.valueOf() == 'number'
+        ? function(){
+          let count = frame.get( this ) + 1
 
-        while( count === frames.length )
-          count = loop ? 0 : count - 1
+          while( count === ( views ? views.length : loops ) )
+            count = loops ? 0 : count - 1
 
-        draws.set( this, count )
+          frame.set( this, count )
 
-        return frames[ count ]( ...arguments )
-      }
-      : view
-  } )
-}
+          return ( views ? views[ count ] : view )( ...arguments )
+        }
+        : view,
+
+        afterall && function(){
+          requestAnimationFrame( () =>
+            afterall( ...arguments )
+          )
+        }
+      )
+    } )
+  },
+
+  { view : state => frame.get( state ) }
+)

@@ -27,7 +27,7 @@ var multi = function(){
 module.exports = function lifecycle( node ){
   return Object.assign( node, {
     oninit         : multi( node.oninit,         node.preview,
-      node.frames && function(){
+      node.views && function(){
         draws.nodes.push( node )
         draws.counts.push( -1 )
       }
@@ -36,26 +36,40 @@ module.exports = function lifecycle( node ){
     oncreate       : multi( node.oncreate,       node.postview ),
     onupdate       : multi( node.onupdate,       node.postview ),
     onremove       : multi( node.onremove,
-      node.frames && function(){
+      node.views && function(){
         var index = draws.nodes.getIndexOf( this )
 
         draws.nodes.splice(  index, 1 )
         draws.counts.splice( index, 1 )
       }
     ),
-    view           :
-        node.frames
+    view           : multi(
+        node.views || typeof loops.valueOf() == 'number'
       ? function(){
         var index = draws.nodes.getIndexOf( this )
         var count = draws.counts[ index ] + 1
 
-        while( count === node.frames.length )
-          count = loop ? 0 : count - 1
+        while( count === ( node.views ? node.views.length : node.loops ) )
+          count = loops ? 0 : count - 1
 
         draws.counts[ index ] = count
 
-        return node.frames[ count ].apply( this, arguments )
+        return (
+            node.views
+          ? node.views[ count ]
+          : node.view
+        ).apply( this, arguments )
       }
-      : node.view
+      : node.view,
+
+      node.afterall && function(){
+        var state = this
+        var args  = arguments
+
+        requestAnimationFrame( function(){
+          node.afterall.apply( state, arguments )
+        } )
+      }
+    )
   } )
 }
